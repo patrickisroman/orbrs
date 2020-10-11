@@ -12,7 +12,7 @@ pub type Point = (i32, i32);
 
 // Consts
 const DEFAULT_N:u8 = 12;
-const DEFAULT_THRESHOLD:i16 = 40;
+const DEFAULT_THRESHOLD:i16 = 45;
 const CIRCLE_RADIUS:u32 = 3;
 const CIRCLE_OFFSETS:[Point; 16] = [
     (0, -3), (1, -3),  (2, -2),  (3, -1),
@@ -34,16 +34,10 @@ fn get_circle_slice(x: i32, y:i32) -> Vec<Point> {
 }
 
 pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Point>, ImageError> {
-    let threshold:i16 = match threshold {
-        Some(i) => i,
-        None => DEFAULT_THRESHOLD
-    };
+    let threshold:i16 = threshold.unwrap_or(DEFAULT_THRESHOLD);
+    let n:u8 = n.unwrap_or(DEFAULT_N);
 
-    let n:u8 = match n {
-        Some(i) => i,
-        None => DEFAULT_N
-    };
-
+    assert!(CIRCLE_OFFSETS.len() as u8 >= n);
     let max_misses = CIRCLE_OFFSETS.len() as u8 - n;
 
     let mut fast_keypoint_matches:Vec<Point> = Vec::new();
@@ -66,7 +60,6 @@ pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Poi
                 let diff:i16 = (circle_pixels[index as usize] - center_pixel).abs();
                 if diff < threshold as i16 {
                     similars += 1;
-
                     if similars > 1 {
                         continue 'x_loop;
                     }
@@ -78,7 +71,6 @@ pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Poi
 
                 if diff < threshold {
                     similars += 1;
-
                     if similars > max_misses {
                         continue 'x_loop;
                     }
@@ -93,10 +85,10 @@ pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Poi
 }
 
 pub fn draw_keypoints(img: &mut image::RgbImage, vec: &Vec<Point>) {
+    let color = [255, 0, 0];
     for (x, y) in vec {
         for (c_x, c_y) in get_circle_slice(*x, *y) {
-            let mut px = img.get_pixel_mut(c_x as u32, c_y as u32);
-            px.0 = [255, 0, 0];
+            img.get_pixel_mut(c_x as u32, c_y as u32).0 = color;
         }
     }
 }
