@@ -46,6 +46,8 @@ pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Poi
     let img = image::open(path)?.to_luma();
     let (width, height) = img.dimensions();
 
+    println!("{} x {} ", width, height);
+    let start = std::time::Instant::now();
     for y in CIRCLE_RADIUS..height-CIRCLE_RADIUS {
         'x_loop: for x in CIRCLE_RADIUS .. width-CIRCLE_RADIUS {
             let circle_pixels = get_circle_slice(x as i32, y as i32)
@@ -56,8 +58,8 @@ pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Poi
             let center_pixel:i16 = img.get_pixel(x, y).0[0] as i16;
 
             let mut similars:u8 = 0;
-            for index in FAST_CHECK_INDICES.to_vec() {
-                let diff:i16 = (circle_pixels[index as usize] - center_pixel).abs();
+            for index in 0..FAST_CHECK_INDICES.len() {
+                let diff:i16 = (circle_pixels[FAST_CHECK_INDICES[index] as usize] - center_pixel).abs();
                 if diff < threshold as i16 {
                     similars += 1;
                     if similars > 1 {
@@ -66,8 +68,8 @@ pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Poi
                 }
             }
 
-            for index in SLOW_CHECK_INDICES.to_vec() {
-                let diff:i16 = (circle_pixels[index as usize] - center_pixel).abs();
+            for index in 0..SLOW_CHECK_INDICES.len() {
+                let diff:i16 = (circle_pixels[SLOW_CHECK_INDICES[index] as usize] - center_pixel).abs();
 
                 if diff < threshold {
                     similars += 1;
@@ -80,6 +82,8 @@ pub fn fast(path: &str, threshold: Option<i16>, n: Option<u8>) -> Result<Vec<Poi
             fast_keypoint_matches.push((x as i32, y as i32));
         }
     }
+
+    println!("{:?}", start.elapsed());
 
     Ok(fast_keypoint_matches)
 }
