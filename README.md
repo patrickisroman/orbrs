@@ -9,11 +9,11 @@ use image;
 use orbrs;
 
 fn test() {
-    let fast_keypoints = orbrs::fast::fast("example/test.jpg", None, None).unwrap();
+    let fast_keypoints = orbrs::fast::fast("example/test.jpg", fast::FastType::TYPE_9_16, None).unwrap();
 
     // draw the keypoints on the image
     let mut img = image::open("example/test.jpg").unwrap().to_rgb();
-    orbrs::fast::draw_keypoints(&mut img, &keypoints);
+    orbrs::fast::draw_keypoints(&mut img, &fast_keypoints);
     img.save_with_format("example/fast_output.png", image::ImageFormat::Png);
 }
 ```
