@@ -1,34 +1,48 @@
 extern crate image;
-use image::{GenericImageView, ImageError};
+use image::{GenericImageView, ImageError, DynamicImage};
 
 // Types
 pub type Point = (i32, i32);
 
+#[derive(Debug)]
 pub struct FastContext {
     offsets: Vec<Point>,
-    slow: Vec<u8>,
     fast: Vec<u8>,
+    slow: Vec<u8>,
     radius: u32,
     n: u8
 }
 
 // TODO: implement more types
+#[derive(Debug, PartialEq)]
 pub enum FastType {
+    TYPE_7_12,
     TYPE_9_16
 }
 
 impl FastType {
     pub fn get_context(&self) -> FastContext {
         match self {
-            TYPE_9_16 => FastContext {
+            FastType::TYPE_7_12 => FastContext {
                 offsets: vec![
-                    (0, -3), (1, -3),  (2, -2),  (3, -1),
-                    (3, 0),  (3, 1),   (2, 2),   (1, 3),
-                    (0, 3),  (-1, 3),  (-2, 2),  (-3, 1),
+                    (0, -2), (1, -2), (2,  -1), (2,   0),
+                    (2,  1), (1,  2), (0,   2), (-1,  2),
+                    (-2, 1), (-2, 0), (-2, -1), (-1, -2)
+                ],
+                fast: vec![0, 3, 6, 9],
+                slow: vec![1, 2, 4, 5, 7, 8, 10, 11],
+                radius: 2,
+                n: 9
+            },
+            FastType::TYPE_9_16 => FastContext {
+                offsets: vec![
+                    (0, -3), (1,  -3), (2, - 2), (3,  -1),
+                    (3,  0), (3,   1), (2,   2), (1,   3),
+                    (0,  3), (-1,  3), (-2,  2), (-3,  1),
                     (-3, 0), (-3, -1), (-2, -2), (-1, -3) 
                 ],
-                slow: vec![0, 4, 8, 12],
-                fast: vec![1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15],
+                fast: vec![0, 4, 8, 12],
+                slow: vec![1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15],
                 radius: 3,
                 n: 12
             }
@@ -52,6 +66,7 @@ pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> 
     let threshold:i16 = threshold.unwrap_or(DEFAULT_THRESHOLD);
     let fast_type:FastType = fast_type.unwrap_or(FastType::TYPE_9_16);
 
+
     let ctx:FastContext = fast_type.get_context();
     let indices_len = (ctx.fast.len() + ctx.slow.len()) as u8;
     let max_misses = indices_len - ctx.n;
@@ -62,13 +77,12 @@ pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> 
     let img = image::open(path)?.to_luma();
     let (width, height) = img.dimensions();
 
-    for y in ctx.radius..height-ctx.radius {
-        'x_loop: for x in ctx.radius .. width-ctx.radius {
+    for y in ctx.radius .. height-(ctx.radius+1) {
+        'x_loop: for x in ctx.radius .. width-(ctx.radius+1) {
             let circle_pixels = get_circle_slice(&ctx, x as i32, y as i32)
                 .into_iter()
                 .map(|(p_x, p_y)| img.get_pixel(p_x as u32, p_y as u32).0[0] as i16)
                 .collect::<Vec<i16>>();
-
             let center_pixel:i16 = img.get_pixel(x, y).0[0] as i16;
 
             //
@@ -108,9 +122,10 @@ pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> 
 }
 
 pub fn draw_keypoints(img: &mut image::RgbImage, vec: &Vec<Point>) {
+    let ctx = FastType::TYPE_9_16.get_context();
     let color = [255, 0, 0];
     for (x, y) in vec {
-        for (c_x, c_y) in get_circle_slice(&FastType::TYPE_9_16.get_context(), *x, *y) {
+        for (c_x, c_y) in get_circle_slice(&ctx, *x, *y) {
             img.get_pixel_mut(c_x as u32, c_y as u32).0 = color;
         }
     }
