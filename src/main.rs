@@ -1,15 +1,17 @@
+#[allow(unused_imports)]
+
 mod orb;
 mod fast;
 
 fn main() {
-    test();
+    test_fast();
 }
 
 fn test_fast() {
-    let keypoints = fast::fast( "example/test.jpg", Some(fast::FastType::TYPE_9_16), None).unwrap();
-    let mut img = image::open("example/test.jpg").unwrap().to_rgb();
+    let keypoints = fast::fast( "example/run.jpg", Some(fast::FastType::TYPE_9_16), None).unwrap();
+    let mut img = image::open("example/run.jpg").unwrap().to_rgb();
     fast::draw_keypoints(&mut img, &keypoints);
-    img.save_with_format("example/test.png", image::ImageFormat::Png);
+    img.save_with_format("example/run.png", image::ImageFormat::Png);
 }
 
 fn test_orb() {

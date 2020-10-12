@@ -13,7 +13,7 @@ pub struct FastContext {
     n: u8
 }
 
-// TODO: implement more types
+#[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq)]
 pub enum FastType {
     TYPE_7_12,
@@ -51,7 +51,7 @@ impl FastType {
 }
 
 // Consts
-const DEFAULT_THRESHOLD:i16 = 40;
+const DEFAULT_THRESHOLD:i16 = 50;
 
 // Methods
 fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {
@@ -63,27 +63,25 @@ fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {
 }
 
 pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> Result<Vec<Point>, ImageError> {
-    let threshold:i16 = threshold.unwrap_or(DEFAULT_THRESHOLD);
-    let fast_type:FastType = fast_type.unwrap_or(FastType::TYPE_9_16);
+    let threshold = threshold.unwrap_or(DEFAULT_THRESHOLD);
+    let fast_type = fast_type.unwrap_or(FastType::TYPE_9_16);
 
-
-    let ctx:FastContext = fast_type.get_context();
+    let ctx = fast_type.get_context();
     let indices_len = (ctx.fast.len() + ctx.slow.len()) as u8;
     let max_misses = indices_len - ctx.n;
 
-    let mut fast_keypoint_matches:Vec<Point> = Vec::new();
+    let mut fast_keypoint_matches = Vec::new();
     
     // load image as intensity map
     let img = image::open(path)?.to_luma();
-    let (width, height) = img.dimensions();
 
-    for y in ctx.radius .. height-(ctx.radius+1) {
-        'x_loop: for x in ctx.radius .. width-(ctx.radius+1) {
+    for y in ctx.radius .. img.height()-(ctx.radius+1) {
+        'x_loop: for x in ctx.radius .. img.width()-(ctx.radius+1) {
+            let center_pixel = img.get_pixel(x, y).0[0] as i16;
             let circle_pixels = get_circle_slice(&ctx, x as i32, y as i32)
                 .into_iter()
                 .map(|(p_x, p_y)| img.get_pixel(p_x as u32, p_y as u32).0[0] as i16)
                 .collect::<Vec<i16>>();
-            let center_pixel:i16 = img.get_pixel(x, y).0[0] as i16;
 
             //
             // get_pixel performs an index check on each call
@@ -92,10 +90,10 @@ pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> 
             // TODO: use unsafe variant or direct buffer addressing
             //
 
-            let mut similars:u8 = 0;
+            let mut similars = 0;
             for index in 0..ctx.fast.len() {
-                let diff:i16 = (circle_pixels[ctx.fast[index] as usize] - center_pixel).abs();
-                if diff < threshold as i16 {
+                let diff = (circle_pixels[ctx.fast[index] as usize] - center_pixel).abs();
+                if diff < threshold {
                     similars += 1;
                     if similars > 1 {
                         continue 'x_loop;
@@ -104,7 +102,7 @@ pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> 
             }
 
             for index in 0..ctx.slow.len() {
-                let diff:i16 = (circle_pixels[ctx.slow[index] as usize] - center_pixel).abs();
+                let diff = (circle_pixels[ctx.slow[index] as usize] - center_pixel).abs();
 
                 if diff < threshold {
                     similars += 1;
