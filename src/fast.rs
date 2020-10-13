@@ -51,7 +51,7 @@ impl FastType {
 }
 
 // Consts
-const DEFAULT_THRESHOLD:i16 = 50;
+const DEFAULT_THRESHOLD:i16 = 35;
 
 // Methods
 fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {

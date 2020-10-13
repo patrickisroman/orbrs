@@ -3,8 +3,9 @@
 mod orb;
 mod fast;
 
-fn main() {
-    test_orb();
+fn main() -> Result<(), image::ImageError> {
+    let _ = test_orb()?;
+    Ok(())
 }
 
 fn test_fast() -> Result<bool, image::ImageError> {
