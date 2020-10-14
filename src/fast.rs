@@ -1,5 +1,4 @@
-extern crate image;
-use image::{GenericImageView, ImageError, DynamicImage};
+use image::{GenericImageView, ImageError, DynamicImage, ImageBuffer, Rgb};
 
 // Types
 pub type Point = (i32, i32);
@@ -51,7 +50,7 @@ impl FastType {
 }
 
 // Consts
-const DEFAULT_THRESHOLD:i16 = 35;
+const DEFAULT_THRESHOLD:i16 = 50;
 
 // Methods
 fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {
@@ -62,7 +61,7 @@ fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {
         .collect()
 }
 
-pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> Result<Vec<Point>, ImageError> {
+pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Option<i16>) -> Result<Vec<Point>, ImageError> {
     let threshold = threshold.unwrap_or(DEFAULT_THRESHOLD);
     let fast_type = fast_type.unwrap_or(FastType::TYPE_9_16);
 
@@ -71,9 +70,6 @@ pub fn fast(path: &str, fast_type: Option<FastType>, threshold: Option<i16>) -> 
     let max_misses = indices_len - ctx.n;
 
     let mut fast_keypoint_matches = Vec::new();
-    
-    // load image as intensity map
-    let img = image::open(path)?.to_luma();
 
     for y in ctx.radius .. img.height()-(ctx.radius+1) {
         'x_loop: for x in ctx.radius .. img.width()-(ctx.radius+1) {
