@@ -111,6 +111,10 @@ pub struct Brief {
     b: BitVector
 }
 
+fn brief_distance(brief1: &Brief, brief2: &Brief) -> usize {
+    brief1.b.intersection(&brief2.b).len()
+}
+
 fn brief(blurred_img: &GrayImage, vec: &Vec<Moment>, brief_length: Option<usize>, n: Option<usize>) -> Vec<Brief> {
     let brief_length = brief_length.unwrap_or(DEFAULT_BRIEF_LENGTH);
     let n = n.unwrap_or(5);
@@ -171,6 +175,8 @@ pub fn orb(img: &GrayImage) -> Result<Vec<Moment>, ImageError> {
         .map(|(x, y)| moment_centroid(&img, x as u32, y as u32, None))
         .collect::<Vec<Moment>>();
 
+    let blurred_img = blur(img, 2.5);
+    let brief_descriptors = brief(&blurred_img, &centroids, None, None);
     Ok(centroids)
 }
 
