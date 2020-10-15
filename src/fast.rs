@@ -140,9 +140,9 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
 
 #[derive(Debug)]
 pub struct Moment {
-    centroid: Point,
-    moment: Point,
-    rotation: f64
+    pub centroid: Point,
+    pub moment: Point,
+    pub rotation: f64
 }
 
 fn patch_moment(img: &GrayImage, x:u32, y:u32, x_moment:u32, y_moment:u32, moment_radius:Option<u32>) -> f32 {
@@ -189,23 +189,12 @@ pub fn calculate_fast_centroids(img: &GrayImage, fast_keypoints: &mut Vec<FastKe
     }
 }
 
-pub fn draw_keypoints(img: &mut image::RgbImage, vec: &Vec<FastKeypoint>) {
-    let ctx = FastType::TYPE_9_16.get_context();
-    let color = [255, 0, 0];
-    for k in vec {
-        for (c_x, c_y) in get_circle_slice(&ctx, k.location.0, k.location.1) {
-            img.get_pixel_mut(c_x as u32, c_y as u32).0 = color;
-        }
-    }
-}
-
 pub fn draw_moments(img: &mut image::RgbImage, vec: &Vec<FastKeypoint>) {
     let ctx = FastType::TYPE_9_16.get_context();
 
     for k in vec {
         let score = (k.score - 12) as u8;
         let color = [50 * score, 0, 122];
-
 
         let start_point = k.location;
 

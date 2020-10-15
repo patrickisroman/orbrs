@@ -7,8 +7,10 @@ use bitvector::BitVector;
 
 use crate::fast;
 use fast::{Point, FastKeypoint, Moment, };
+use cgmath::prelude::*;
+use cgmath::{Rad, Deg};
 
-const DEFAULT_BRIEF_LENGTH:usize = 128;
+const DEFAULT_BRIEF_LENGTH:usize = 64;
 
 //
 // Sobel Calculations
@@ -54,16 +56,30 @@ fn create_sobel_image(img: &GrayImage) -> GrayImage {
 
 #[derive(Debug)]
 pub struct Brief {
-    x: i32,
-    y: i32,
-    b: BitVector
+    pub x: i32,
+    pub y: i32,
+    pub b: BitVector
 }
 
 fn brief_distance(brief1: &Brief, brief2: &Brief) -> usize {
     brief1.b.intersection(&brief2.b).len()
 }
 
-fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>, n: Option<usize>) -> Vec<Brief> {
+fn round_angle(angle: i32, increment: i32) -> i32 {
+    let modulo:i32 = angle % increment;
+    let complement:i32 = match angle < 0 {
+        true => increment + modulo,
+        false => increment - modulo
+    };
+
+    if modulo.abs() > (increment / 2) {
+        return if angle < 0 { angle - complement } else { angle + complement };
+    }
+
+    angle - modulo
+}
+
+pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>, n: Option<usize>) -> Vec<Brief> {
     let brief_length = brief_length.unwrap_or(DEFAULT_BRIEF_LENGTH);
     let n = n.unwrap_or(5);
 
@@ -76,25 +92,41 @@ fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<
 
     vec.into_iter()
         .map(|k| {
+            // calculate the angle to steer the BRIEF descriptors
+            let rotation = Deg::from(Rad(k.moment.rotation)).0.round() as i32;
+            let rounded_angle = Deg(round_angle(rotation, 12) as f32);
+            let r0 = Deg::cos(rounded_angle);
+            let r1 = Deg::sin(rounded_angle);
+
             let mut bit_vec = BitVector::new(brief_length);
 
             for i in 0..bit_vec.capacity() {
-                let mut p1 = (
-                    k.location.0 + inner_dist.sample(&mut thread_rng()).round() as i32,
-                    k.location.1 + inner_dist.sample(&mut thread_rng()).round() as i32
+                let p1 = (
+                    k.location.0 as f32 + inner_dist.sample(&mut thread_rng()).round() as f32,
+                    k.location.1 as f32 + inner_dist.sample(&mut thread_rng()).round() as f32
                 );
-                let mut p2 = (
-                    k.location.0 + outer_dist.sample(&mut thread_rng()).round() as i32,
-                    k.location.1 + outer_dist.sample(&mut thread_rng()).round() as i32
+                let p2 = (
+                    k.location.0 as f32 + outer_dist.sample(&mut thread_rng()).round() as f32,
+                    k.location.1 as f32 + outer_dist.sample(&mut thread_rng()).round() as f32
                 );
 
-                p1.0 = std::cmp::max(std::cmp::min(p1.0, width - 1), 0);
-                p2.0 = std::cmp::max(std::cmp::min(p2.0, width - 1), 0);
-                p1.1 = std::cmp::max(std::cmp::min(p1.1, height - 1), 0);
-                p2.1 = std::cmp::max(std::cmp::min(p2.1, height - 1), 0);
+                let mut steered_p1 = (
+                    (p1.0 * r0 - p1.1 * r1).round() as i32,
+                    (p1.0 * r1 + p1.1 * r0).round() as i32
+                );
 
-                let brief_feature = blurred_img.get_pixel(p1.0 as u32, p1.1 as u32).0[0] >
-                                    blurred_img.get_pixel(p2.0 as u32, p2.1 as u32).0[0];
+                let mut steered_p2 = (
+                    (p2.0 * r0 - p2.1 * r1).round() as i32,
+                    (p2.0 * r1 + p2.1 * r0).round() as i32
+                );
+
+                steered_p1.0 = std::cmp::max(std::cmp::min(steered_p1.0, width - 1), 0);
+                steered_p2.0 = std::cmp::max(std::cmp::min(steered_p2.0, width - 1), 0);
+                steered_p1.1 = std::cmp::max(std::cmp::min(steered_p1.1, height - 1), 0);
+                steered_p2.1 = std::cmp::max(std::cmp::min(steered_p2.1, height - 1), 0);
+
+                let brief_feature = blurred_img.get_pixel(steered_p1.0 as u32, steered_p1.1 as u32).0[0] >
+                                    blurred_img.get_pixel(steered_p2.0 as u32, steered_p2.1 as u32).0[0];
 
                 if brief_feature {
                     bit_vec.insert(i);
