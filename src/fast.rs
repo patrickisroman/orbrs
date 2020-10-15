@@ -1,7 +1,18 @@
-use image::{GenericImageView, ImageError, DynamicImage, ImageBuffer, Rgb};
+use image::{GenericImageView, ImageError, DynamicImage, ImageBuffer, Rgb, GrayImage};
+use imageproc::drawing::draw_line_segment_mut;
+use cgmath::prelude::*;
+use cgmath::{Rad};
 
 // Types
 pub type Point = (i32, i32);
+
+// Make a trait for FastKeypoint/OrientedFastKeypoint
+#[derive(Debug)]
+pub struct FastKeypoint {
+    pub location: Point,
+    pub score: u32,
+    pub moment: Moment
+}
 
 #[derive(Debug)]
 pub struct FastContext {
@@ -9,7 +20,7 @@ pub struct FastContext {
     fast: Vec<u8>,
     slow: Vec<u8>,
     radius: u32,
-    n: u8
+    n: u32
 }
 
 #[allow(non_camel_case_types)]
@@ -50,7 +61,7 @@ impl FastType {
 }
 
 // Consts
-const DEFAULT_THRESHOLD:i16 = 50;
+const DEFAULT_THRESHOLD:i16 = 40;
 
 // Methods
 fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {
@@ -61,12 +72,12 @@ fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {
         .collect()
 }
 
-pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Option<i16>) -> Result<Vec<Point>, ImageError> {
+pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Option<i16>) -> Result<Vec<FastKeypoint>, ImageError> {
     let threshold = threshold.unwrap_or(DEFAULT_THRESHOLD);
     let fast_type = fast_type.unwrap_or(FastType::TYPE_9_16);
 
     let ctx = fast_type.get_context();
-    let indices_len = (ctx.fast.len() + ctx.slow.len()) as u8;
+    let indices_len = (ctx.fast.len() + ctx.slow.len()) as u32;
     let max_misses = indices_len - ctx.n;
 
     let mut fast_keypoint_matches = Vec::new();
@@ -86,7 +97,7 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
             // TODO: use unsafe variant or direct buffer addressing
             //
 
-            let mut similars = 0;
+            let mut similars:u32 = 0;
             for index in 0..ctx.fast.len() {
                 let diff = (circle_pixels[ctx.fast[index] as usize] - center_pixel).abs();
                 if diff < threshold {
@@ -108,18 +119,112 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
                 }
             }
 
-            fast_keypoint_matches.push((x as i32, y as i32));
+            fast_keypoint_matches.push( FastKeypoint {
+                location: (x as i32, y as i32),
+                score: indices_len - similars,
+                moment: Moment {
+                    centroid: (0, 0),
+                    moment: (0, 0),
+                    rotation: 0.0
+                }
+            });
         }
     }
 
     Ok(fast_keypoint_matches)
 }
 
-pub fn draw_keypoints(img: &mut image::RgbImage, vec: &Vec<Point>) {
+//
+// FAST Moment Calculations
+//
+
+#[derive(Debug)]
+pub struct Moment {
+    centroid: Point,
+    moment: Point,
+    rotation: f64
+}
+
+fn patch_moment(img: &GrayImage, x:u32, y:u32, x_moment:u32, y_moment:u32, moment_radius:Option<u32>) -> f32 {
+    let moment_radius = moment_radius.unwrap_or(3);
+
+    if x < moment_radius || y < moment_radius {
+        return 1.0;
+    }
+
+    let mut patch_sum:u32 = 0;
+    for mx in (x-moment_radius)..=(x+moment_radius) {
+        for my in (y-moment_radius)..=(y+moment_radius) {
+            patch_sum += mx.pow(x_moment) * my.pow(y_moment) * img.get_pixel(mx, my).0[0] as u32;
+        }
+    }
+
+    patch_sum as f32
+}
+
+fn moment_centroid(img: &GrayImage, x:i32, y:i32, moment_radius:Option<u32>) -> Moment {
+    // TODO weed out the repeated calculations here
+    let p_m = patch_moment(img, x as u32, y as u32, 0, 0, moment_radius);
+    let p_x = patch_moment(img, x as u32, y as u32, 1, 0, moment_radius);
+    let p_y = patch_moment(img, x as u32, y as u32, 0, 1, moment_radius);
+
+    let (mx, my) = (
+        (p_x/p_m),
+        (p_y/p_m)
+    );
+
+    let x_diff = (x as f32 - mx) as f64;
+    let y_diff = (y as f32 - my) as f64;
+
+    Moment {
+        centroid: (x as i32, y as i32),
+        moment: (mx.round() as i32, my.round() as i32),
+        rotation: y_diff.atan2(x_diff)
+    }
+}
+
+pub fn calculate_fast_centroids(img: &GrayImage, fast_keypoints: &mut Vec<FastKeypoint>) {
+    for keypoint in fast_keypoints.iter_mut() {
+        keypoint.moment = moment_centroid(img, keypoint.location.0, keypoint.location.1, None);
+    }
+}
+
+pub fn draw_keypoints(img: &mut image::RgbImage, vec: &Vec<FastKeypoint>) {
     let ctx = FastType::TYPE_9_16.get_context();
     let color = [255, 0, 0];
-    for (x, y) in vec {
-        for (c_x, c_y) in get_circle_slice(&ctx, *x, *y) {
+    for k in vec {
+        for (c_x, c_y) in get_circle_slice(&ctx, k.location.0, k.location.1) {
+            img.get_pixel_mut(c_x as u32, c_y as u32).0 = color;
+        }
+    }
+}
+
+pub fn draw_moments(img: &mut image::RgbImage, vec: &Vec<FastKeypoint>) {
+    let ctx = FastType::TYPE_9_16.get_context();
+
+    for k in vec {
+        let score = (k.score - 12) as u8;
+        let color = [50 * score, 0, 122];
+
+
+        let start_point = k.location;
+
+        let rotation_radians = Rad(k.moment.rotation);
+        let dist = (score * 5) as f64;
+
+        let end_point = (
+            start_point.0 as f32 + (dist * Rad::cos(rotation_radians)).round() as f32,
+            start_point.1 as f32 + (dist * Rad::sin(rotation_radians)).round() as f32
+        );
+
+        draw_line_segment_mut(
+            img,
+            (start_point.0 as f32, start_point.1 as f32),
+            end_point,
+            Rgb([0, 0, 0])
+        );
+
+        for (c_x, c_y) in get_circle_slice(&ctx, k.location.0, k.location.1) {
             img.get_pixel_mut(c_x as u32, c_y as u32).0 = color;
         }
     }

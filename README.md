@@ -9,11 +9,15 @@ use image;
 use orbrs;
 
 fn test() {
-    let fast_keypoints = orbrs::fast::fast("example/test.jpg", fast::FastType::TYPE_9_16, None).unwrap();
+    let mut img = image::open("example/test.jpg").unwrap().to_rgb();
+    let mut gray_img = img.to_luma();
+
+    let fast_keypoints = orbrs::fast::fast(&gray_img, Some(fast::FastType::TYPE_9_16), None).unwrap();
+    orbrs::fast::calculate_fast_centroids(&gray_img, &mut fast_keypoints);
 
     // draw the keypoints on the image
-    let mut img = image::open("example/test.jpg").unwrap().to_rgb();
-    orbrs::fast::draw_keypoints(&mut img, &fast_keypoints);
+    
+    orbrs::fast::draw_moments(&mut img, &fast_keypoints);
     img.save_with_format("example/fast_output.png", image::ImageFormat::Png);
 }
 ```
