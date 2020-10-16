@@ -10,7 +10,7 @@ use fast::{Point, FastKeypoint, Moment, };
 use cgmath::prelude::*;
 use cgmath::{Rad, Deg};
 
-const DEFAULT_BRIEF_LENGTH:usize = 64;
+const DEFAULT_BRIEF_LENGTH:usize = 128;
 
 //
 // Sobel Calculations
@@ -101,23 +101,24 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
             let mut bit_vec = BitVector::new(brief_length);
 
             for i in 0..bit_vec.capacity() {
-                let p1 = (
-                    k.location.0 as f32 + inner_dist.sample(&mut thread_rng()).round() as f32,
-                    k.location.1 as f32 + inner_dist.sample(&mut thread_rng()).round() as f32
+                let offset1 = (
+                    inner_dist.sample(&mut thread_rng()).round() as f32,
+                    inner_dist.sample(&mut thread_rng()).round() as f32
                 );
-                let p2 = (
-                    k.location.0 as f32 + outer_dist.sample(&mut thread_rng()).round() as f32,
-                    k.location.1 as f32 + outer_dist.sample(&mut thread_rng()).round() as f32
+
+                let offset2 = (
+                    outer_dist.sample(&mut thread_rng()).round() as f32,
+                    outer_dist.sample(&mut thread_rng()).round() as f32
                 );
 
                 let mut steered_p1 = (
-                    (p1.0 * r0 - p1.1 * r1).round() as i32,
-                    (p1.0 * r1 + p1.1 * r0).round() as i32
+                    k.location.0 + (offset1.0 * r0 - offset1.1 * r1).round() as i32,
+                    k.location.1 + (offset1.0 * r1 + offset1.1 * r0).round() as i32
                 );
 
                 let mut steered_p2 = (
-                    (p2.0 * r0 - p2.1 * r1).round() as i32,
-                    (p2.0 * r1 + p2.1 * r0).round() as i32
+                    k.location.0 + (offset2.0 * r0 - offset2.1 * r1).round() as i32,
+                    k.location.1 + (offset2.0 * r1 + offset2.1 * r0).round() as i32
                 );
 
                 steered_p1.0 = std::cmp::max(std::cmp::min(steered_p1.0, width - 1), 0);
