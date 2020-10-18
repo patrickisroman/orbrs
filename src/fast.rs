@@ -3,14 +3,20 @@ use imageproc::drawing::draw_line_segment_mut;
 use cgmath::prelude::*;
 use cgmath::{Rad};
 
+
+// Consts
+const DEFAULT_THRESHOLD:i16 = 50;
+
 // Types
 pub type Point = (i32, i32);
 
 // Make a trait for FastKeypoint/OrientedFastKeypoint
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct FastKeypoint {
     pub location: Point,
     pub score: u32,
+    pub diff: i16,
+    pub nms_dist: f64,
     pub moment: Moment
 }
 
@@ -60,9 +66,6 @@ impl FastType {
     }
 }
 
-// Consts
-const DEFAULT_THRESHOLD:i16 = 40;
-
 // Methods
 fn get_circle_slice(ctx: &FastContext, x: i32, y:i32) -> Vec<Point> {
     ctx.offsets
@@ -84,6 +87,7 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
 
     for y in ctx.radius .. img.height()-(ctx.radius+1) {
         'x_loop: for x in ctx.radius .. img.width()-(ctx.radius+1) {
+            let mut score:i16 = 0;
             let center_pixel = img.get_pixel(x, y).0[0] as i16;
             let circle_pixels = get_circle_slice(&ctx, x as i32, y as i32)
                 .into_iter()
@@ -106,22 +110,25 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
                         continue 'x_loop;
                     }
                 }
+                score += diff;
             }
 
             for index in 0..ctx.slow.len() {
                 let diff = (circle_pixels[ctx.slow[index] as usize] - center_pixel).abs();
-
                 if diff < threshold {
                     similars += 1;
                     if similars > max_misses {
                         continue 'x_loop;
                     }
                 }
+                score += diff;
             }
 
             fast_keypoint_matches.push( FastKeypoint {
                 location: (x as i32, y as i32),
                 score: indices_len - similars,
+                diff: score,
+                nms_dist: 0.0,
                 moment: Moment {
                     centroid: (0, 0),
                     moment: (0, 0),
@@ -131,6 +138,8 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
         }
     }
 
+    // sort by diff comps
+    fast_keypoint_matches.sort_by(|a, b| b.diff.cmp(&a.diff));
     Ok(fast_keypoint_matches)
 }
 
@@ -138,7 +147,7 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
 // FAST Moment Calculations
 //
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Moment {
     pub centroid: Point,
     pub moment: Point,

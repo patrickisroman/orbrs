@@ -6,7 +6,7 @@ use rand::distributions::{Normal, Distribution};
 use bitvector::BitVector;
 
 use crate::fast;
-use fast::{Point, FastKeypoint, Moment, };
+use fast::{Point, FastKeypoint, Moment};
 use cgmath::prelude::*;
 use cgmath::{Rad, Deg};
 
@@ -77,6 +77,29 @@ fn round_angle(angle: i32, increment: i32) -> i32 {
     }
 
     angle - modulo
+}
+
+pub fn adaptive_nonmax_suppression(vec: &mut Vec<FastKeypoint>, n: usize) -> Vec<FastKeypoint> {
+    let mut suppressed_keypoints = vec![];
+    for i in 1..vec.len() - 1 {
+        let d1 = vec[i];
+        let mut min_dist:f64 = f64::MAX;
+        for j in 0..i {
+            let d0 = vec[j];
+            let dist = (((d0.location.0 - d1.location.0).pow(2) + (d0.location.1 - d1.location.1).pow(2)) as f64).sqrt();
+            if dist < min_dist {
+                min_dist = dist;
+            }
+        }
+        vec[i].nms_dist = min_dist;
+    }
+
+    vec.sort_by(|a, b| b.nms_dist.partial_cmp(&a.nms_dist).unwrap());
+
+    for k in 0..n {
+        suppressed_keypoints.push(vec[k]);
+    }
+    suppressed_keypoints
 }
 
 pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>, n: Option<usize>) -> Vec<Brief> {
