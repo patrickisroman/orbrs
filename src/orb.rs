@@ -10,7 +10,7 @@ use fast::{Point, FastKeypoint, Moment};
 use cgmath::prelude::*;
 use cgmath::{Rad, Deg};
 
-const DEFAULT_BRIEF_LENGTH:usize = 128;
+const DEFAULT_BRIEF_LENGTH:usize = 16;
 
 //
 // Sobel Calculations
@@ -61,8 +61,15 @@ pub struct Brief {
     pub b: BitVector
 }
 
+// lol wtf this bitvector library xor doesn't work...
 fn brief_distance(brief1: &Brief, brief2: &Brief) -> usize {
-    brief1.b.intersection(&brief2.b).len()
+    let mut diff:usize = 0;
+    for i in 0..std::cmp::min(brief1.b.capacity(), brief2.b.capacity()) {
+        if brief1.b.contains(i) != brief2.b.contains(i) {
+            diff += 1;
+        }
+    }
+    diff
 }
 
 fn round_angle(angle: i32, increment: i32) -> i32 {
@@ -104,11 +111,9 @@ pub fn adaptive_nonmax_suppression(vec: &mut Vec<FastKeypoint>, n: usize) -> Vec
 
 pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>, n: Option<usize>) -> Vec<Brief> {
     let brief_length = brief_length.unwrap_or(DEFAULT_BRIEF_LENGTH);
-    let n = n.unwrap_or(5);
+    let n = n.unwrap_or(15) as f64;
 
-    // TODO FAST specifies two distributions are a bit more efficient than a single distribution
-    let inner_dist = Normal::new(0.0, n as f64);
-    let outer_dist = Normal::new(0.0, (n as f64)/2.0);
+    let dist = Normal::new(0.0, n.powi(2)/25.0);
 
     let width:i32 = blurred_img.width() as i32;
     let height:i32 = blurred_img.height() as i32;
@@ -123,16 +128,18 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
 
             let mut bit_vec = BitVector::new(brief_length);
 
-            for i in 0..bit_vec.capacity() {
+            for i in 0..brief_length {
                 let offset1 = (
-                    inner_dist.sample(&mut thread_rng()).round() as f32,
-                    inner_dist.sample(&mut thread_rng()).round() as f32
+                    dist.sample(&mut thread_rng()).round() as f32,
+                    dist.sample(&mut thread_rng()).round() as f32
                 );
 
                 let offset2 = (
-                    outer_dist.sample(&mut thread_rng()).round() as f32,
-                    outer_dist.sample(&mut thread_rng()).round() as f32
+                    dist.sample(&mut thread_rng()).round() as f32,
+                    dist.sample(&mut thread_rng()).round() as f32
                 );
+
+                println!("{:?}, {:?}", offset1, offset2);
 
                 let mut steered_p1 = (
                     k.location.0 + (offset1.0 * r0 - offset1.1 * r1).round() as i32,
@@ -176,6 +183,10 @@ pub fn orb(img: &GrayImage, n:usize) -> Result<Vec<Brief>, ImageError> {
     fast::calculate_fast_centroids(img, &mut keypoints);
     let mut keypoints = adaptive_nonmax_suppression(&mut keypoints, n);
 
+    println!("\n");
+    println!("{:?}", keypoints);
+    println!("\n");
+
     let blurred_img = blur(img, 2.0);
     let brief_descriptors = brief(&blurred_img, &keypoints, None, None);
 
@@ -183,15 +194,19 @@ pub fn orb(img: &GrayImage, n:usize) -> Result<Vec<Brief>, ImageError> {
 }
 
 pub fn match_brief(vec1: &Vec<Brief>, vec2: &Vec<Brief>) -> Vec<(usize, usize)>{
-    let mut index_vec = vec![];
-    let mut matched_indices = BitVector::new(std::cmp::min(vec1.len(), vec2.len()));
+    assert_eq!(vec1.len(), vec2.len());
 
-    for i in 0..vec1.len() {
+    let mut index_vec = vec![];
+    let len = std::cmp::min(vec1.len(), vec2.len());
+    let mut matched_indices = BitVector::new(len);
+
+    for i in 0..len {
         let mut min_hamming_dist:usize = usize::MAX;
         let mut matched_index:usize = 0;
         for j in 0..vec2.len() {
-            if i == j { continue }
-            if matched_indices.contains(j) { continue }
+            if matched_indices.contains(j) { 
+                continue 
+            }
 
            let dist = brief_distance(&vec1[i], &vec2[j]);
            if dist < min_hamming_dist {
@@ -200,7 +215,7 @@ pub fn match_brief(vec1: &Vec<Brief>, vec2: &Vec<Brief>) -> Vec<(usize, usize)>{
            }
         }
 
-        index_vec.push((i as usize, matched_index  as usize));
+        index_vec.push((i as usize, matched_index as usize));
         matched_indices.insert(matched_index);
     }
 

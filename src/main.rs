@@ -3,8 +3,51 @@
 mod orb;
 mod fast;
 
+use image::{ImageError, GenericImageView, DynamicImage, ImageBuffer, Rgb, GrayImage, ImageFormat, RgbImage};
+use imageproc::drawing::draw_line_segment_mut;
+
+use bitvector::BitVector;
+
 fn main() {
-    println!("{:?}", test_fast());
+    println!("{:?}", test_orb_mapping("example/a.png", "example/b.png"));
+}
+
+fn test_orb_mapping(img1: &str, img2: &str) -> Result<bool, image::ImageError> {
+    let mut img1 = image::open(img1)?;
+    let mut img2 = image::open(img2)?;
+
+    let n = 10;
+
+    let mut key1 = orb::orb(&img1.to_luma(), n)?;
+    let mut key2 = orb::orb(&img2.to_luma(), n)?;
+
+    for k in &key1 {
+        println!("{:?}", k);
+    }
+
+    println!("\n");
+    for k in &key2 {
+        println!("{:?}", k);
+    }
+
+    let mut outimg = image::open("example/out.png")?.to_rgb();
+    let comp = orb::match_brief(&key1, &key2);
+
+    for (i, j) in &comp {
+        let k1 = key1.get(*i).unwrap();
+        let k2 = key2.get(*j).unwrap();
+
+        draw_line_segment_mut(
+            &mut outimg,
+            (k1.x as f32, k1.y as f32),
+            (600.0 + k2.x as f32, k2.y as f32),
+            Rgb([255, 255, 255])
+        );
+    }
+
+    outimg.save_with_format("out.png", image::ImageFormat::Png);
+
+    Ok(true)
 }
 
 fn test_fast() -> Result<bool, image::ImageError> {
