@@ -171,18 +171,38 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
 //
 
 // load image and pass around reference to image instead of loading from path
-pub fn orb(img: &GrayImage) -> Result<Vec<FastKeypoint>, ImageError> {
-    // let keypoints = fast::fast(img, None, None)?;
+pub fn orb(img: &GrayImage, n:usize) -> Result<Vec<Brief>, ImageError> {
+    let mut keypoints = fast::fast(img, None, None)?;
+    fast::calculate_fast_centroids(img, &mut keypoints);
+    let mut keypoints = adaptive_nonmax_suppression(&mut keypoints, n);
 
-    // let centroids = keypoints
-    //     .into_iter()
-    //     .map(|k| moment_centroid(&img, x as u32, y as u32, None))
-    //     .collect::<Vec<Moment>>();
+    let blurred_img = blur(img, 2.0);
+    let brief_descriptors = brief(&blurred_img, &keypoints, None, None);
 
-    // let blurred_img = blur(img, 2.5);
-    // let brief_descriptors = brief(&blurred_img, &centroids, None, None);
-    // Ok(centroids)
-    
-    let centroids:Vec<FastKeypoint> = vec![];
-    Ok(centroids)
+    Ok(brief_descriptors)
+}
+
+pub fn match_brief(vec1: &Vec<Brief>, vec2: &Vec<Brief>) -> Vec<(usize, usize)>{
+    let mut index_vec = vec![];
+    let mut matched_indices = BitVector::new(std::cmp::min(vec1.len(), vec2.len()));
+
+    for i in 0..vec1.len() {
+        let mut min_hamming_dist:usize = usize::MAX;
+        let mut matched_index:usize = 0;
+        for j in 0..vec2.len() {
+            if i == j { continue }
+            if matched_indices.contains(j) { continue }
+
+           let dist = brief_distance(&vec1[i], &vec2[j]);
+           if dist < min_hamming_dist {
+               min_hamming_dist = dist;
+               matched_index = j;
+           }
+        }
+
+        index_vec.push((i as usize, matched_index  as usize));
+        matched_indices.insert(matched_index);
+    }
+
+    index_vec
 }
