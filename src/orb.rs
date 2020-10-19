@@ -5,12 +5,12 @@ use rand::{Rng, thread_rng};
 use rand::distributions::{Normal, Distribution};
 use bitvector::BitVector;
 
-use crate::fast;
+use crate::{fast, brief};
 use fast::{Point, FastKeypoint, Moment};
 use cgmath::prelude::*;
 use cgmath::{Rad, Deg};
 
-const DEFAULT_BRIEF_LENGTH:usize = 16;
+const DEFAULT_BRIEF_LENGTH:usize = 256;
 
 //
 // Sobel Calculations
@@ -111,9 +111,7 @@ pub fn adaptive_nonmax_suppression(vec: &mut Vec<FastKeypoint>, n: usize) -> Vec
 
 pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>, n: Option<usize>) -> Vec<Brief> {
     let brief_length = brief_length.unwrap_or(DEFAULT_BRIEF_LENGTH);
-    let n = n.unwrap_or(15) as f64;
-
-    let dist = Normal::new(0.0, n.powi(2)/25.0);
+    let n = n.unwrap_or(10) as f64;
 
     let width:i32 = blurred_img.width() as i32;
     let height:i32 = blurred_img.height() as i32;
@@ -123,32 +121,24 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
             // calculate the angle to steer the BRIEF descriptors
             let rotation = Deg::from(Rad(k.moment.rotation)).0.round() as i32;
             let rounded_angle = Deg(round_angle(rotation, 12) as f32);
-            let r0 = Deg::cos(rounded_angle);
-            let r1 = Deg::sin(rounded_angle);
+            let cos_a = Deg::cos(rounded_angle);
+            let sin_a = Deg::sin(rounded_angle);
+            let (x, y) = k.location;
 
             let mut bit_vec = BitVector::new(brief_length);
 
             for i in 0..brief_length {
-                let offset1 = (
-                    dist.sample(&mut thread_rng()).round() as f32,
-                    dist.sample(&mut thread_rng()).round() as f32
-                );
-
-                let offset2 = (
-                    dist.sample(&mut thread_rng()).round() as f32,
-                    dist.sample(&mut thread_rng()).round() as f32
-                );
-
-                println!("{:?}, {:?}", offset1, offset2);
+                let (x0, y0) = brief::OFFSETS[i].0;
+                let (x1, y1) = brief::OFFSETS[i].1;
 
                 let mut steered_p1 = (
-                    k.location.0 + (offset1.0 * r0 - offset1.1 * r1).round() as i32,
-                    k.location.1 + (offset1.0 * r1 + offset1.1 * r0).round() as i32
+                    x + (x0 * cos_a - y0 * sin_a).round() as i32,
+                    y + (x0 * sin_a + y0 * cos_a).round() as i32
                 );
 
                 let mut steered_p2 = (
-                    k.location.0 + (offset2.0 * r0 - offset2.1 * r1).round() as i32,
-                    k.location.1 + (offset2.0 * r1 + offset2.1 * r0).round() as i32
+                    x + (x1 * cos_a - y1 * sin_a).round() as i32,
+                    y + (x1 * sin_a + y1 * cos_a).round() as i32
                 );
 
                 steered_p1.0 = std::cmp::max(std::cmp::min(steered_p1.0, width - 1), 0);
@@ -182,10 +172,6 @@ pub fn orb(img: &GrayImage, n:usize) -> Result<Vec<Brief>, ImageError> {
     let mut keypoints = fast::fast(img, None, None)?;
     fast::calculate_fast_centroids(img, &mut keypoints);
     let mut keypoints = adaptive_nonmax_suppression(&mut keypoints, n);
-
-    println!("\n");
-    println!("{:?}", keypoints);
-    println!("\n");
 
     let blurred_img = blur(img, 2.0);
     let brief_descriptors = brief(&blurred_img, &keypoints, None, None);
