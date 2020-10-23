@@ -7,8 +7,8 @@ pub trait Matchable {
 }
 
 pub fn match_indices<T>(vec1: &Vec<T>, vec2: &Vec<T>) -> Vec<(usize, usize)>
-    where 
-        T: Matchable
+where
+    T: Matchable
 {
     assert_eq!(vec1.len(), vec2.len());
 
@@ -17,7 +17,7 @@ pub fn match_indices<T>(vec1: &Vec<T>, vec2: &Vec<T>) -> Vec<(usize, usize)>
     let mut matched_indices = BitVector::new(len);
 
     for i in 0..len {
-        let mut min_hamming_dist:usize = usize::MAX;
+        let mut min_dist:usize = usize::MAX;
         let mut matched_index:usize = 0;
         for j in 0..len {
             if i == j || matched_indices.contains(j) { 
@@ -25,8 +25,8 @@ pub fn match_indices<T>(vec1: &Vec<T>, vec2: &Vec<T>) -> Vec<(usize, usize)>
             }
 
             let dist = vec1[i].distance(&vec2[j]);
-            if dist < min_hamming_dist {
-                min_hamming_dist = dist;
+            if dist < min_dist {
+                min_dist = dist;
                 matched_index = j;
             }
         }
@@ -39,9 +39,9 @@ pub fn match_indices<T>(vec1: &Vec<T>, vec2: &Vec<T>) -> Vec<(usize, usize)>
 }
 
 pub fn adaptive_nonmax_suppression<T>(vec: &mut Vec<T>, n: usize) -> Vec<T> 
-    where 
-        T: Matchable,
-        T: Copy
+where
+    T: Matchable,
+    T: Copy
 {
     assert!(n <= vec.len());
 
