@@ -2,25 +2,24 @@ use image::{ImageError, Rgb, GrayImage};
 use imageproc::drawing::draw_line_segment_mut;
 use cgmath::{prelude::{*}, Rad};
 
+use crate::common;
+use common::*;
+
 // Consts
 const DEFAULT_FAST_THRESHOLD:i32 = 50;
-
-// Types
-pub type Point = (i32, i32);
-pub type Offset = (i32, i32);
 
 #[derive(Debug, Clone, Copy)]
 pub struct FastKeypoint {
     pub location: Point,
     pub score: i32,
-    pub nms_dist: f32,
+    pub nms_dist: usize,
     pub moment: Moment
 }
 
-impl FastKeypoint {
-    pub fn dist(&self, other:&FastKeypoint) -> f32 {
+impl Matchable for FastKeypoint {
+    fn distance(&self, other: &FastKeypoint) -> usize {
         let ((ax, ay), (bx, by)) = (self.location, other.location);
-        ((ax-bx).pow(2) as f32 + (ay-by).pow(2) as f32).sqrt()
+        ((ax-bx).pow(2) as f32 + (ay-by).pow(2) as f32).sqrt() as usize
     }
 }
 
@@ -113,7 +112,7 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
             fast_keypoint_matches.push(FastKeypoint {
                 location: point,
                 score: score,
-                nms_dist: 0.0,
+                nms_dist: 0,
                 moment: moment
             });
         }

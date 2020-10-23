@@ -1,11 +1,12 @@
 use std::cmp::{min, max};
-use image::{ImageError, GenericImageView, DynamicImage, ImageBuffer, Rgb, GrayImage, ImageFormat, RgbImage};
+use image::{ImageError, GenericImageView, DynamicImage, ImageBuffer, GrayImage};
 use image::imageops::{blur};
 use cgmath::{prelude::{*},Rad, Deg};
 use bitvector::BitVector;
 
-use crate::{fast, brief};
+use crate::{fast, brief, common};
 use fast::{FastKeypoint};
+use common::{*};
 
 // Consts
 const DEFAULT_BRIEF_LENGTH:usize = 256;
@@ -58,8 +59,8 @@ pub struct Brief {
     b: BitVector
 }
 
-impl Brief {
-    pub fn hamming_dist(&self, other: &Brief) -> usize {
+impl Matchable for Brief {
+    fn distance(&self, other: &Self) -> usize {
         (0..min(self.b.capacity(), other.b.capacity()))
         .fold(0, |acc, x| {
             acc + (self.b.contains(x) != other.b.contains(x)) as usize
@@ -77,29 +78,6 @@ fn round_angle(angle: i32, increment: i32) -> i32 {
     }
 
     angle - modulo
-}
-
-pub fn adaptive_nonmax_suppression(vec: &mut Vec<FastKeypoint>, n: usize) -> Vec<FastKeypoint> {
-    let mut maximal_keypoints = vec![];
-    for i in 1..vec.len() - 1 {
-        let d1 = vec[i];
-        let mut min_dist:f32 = f32::MAX;
-        for j in 0..i {
-            let d0 = vec[j];
-            let dist = d0.dist(&d1);
-            if dist < min_dist {
-                min_dist = dist;
-            }
-        }
-        vec[i].nms_dist = min_dist;
-    }
-
-    vec.sort_by(|a, b| b.nms_dist.partial_cmp(&a.nms_dist).unwrap());
-
-    for k in 0..n {
-        maximal_keypoints.push(vec[k]);
-    }
-    maximal_keypoints
 }
 
 pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>) -> Vec<Brief> {
@@ -160,7 +138,7 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
 pub fn orb(img: &DynamicImage, n:usize) -> Result<Vec<Brief>, ImageError> {
     let gray_img = img.to_luma();
     
-    let mut keypoints = fast::fast(&gray_img, None, None)?;
+    let mut keypoints:Vec<FastKeypoint> = fast::fast(&gray_img, None, None)?;
 
     let keypoints = adaptive_nonmax_suppression(&mut keypoints, n);
 
@@ -168,33 +146,4 @@ pub fn orb(img: &DynamicImage, n:usize) -> Result<Vec<Brief>, ImageError> {
     let brief_descriptors = brief(&blurred_img, &keypoints, None);
 
     Ok(brief_descriptors)
-}
-
-pub fn match_brief(vec1: &Vec<Brief>, vec2: &Vec<Brief>) -> Vec<(usize, usize)>{
-    assert_eq!(vec1.len(), vec2.len());
-
-    let mut index_vec = vec![];
-    let len = min(vec1.len(), vec2.len());
-    let mut matched_indices = BitVector::new(len);
-
-    for i in 0..len {
-        let mut min_hamming_dist:usize = usize::MAX;
-        let mut matched_index:usize = 0;
-        for j in 0..vec2.len() {
-            if matched_indices.contains(j) { 
-                continue 
-            }
-
-           let dist = vec1[i].hamming_dist(&vec2[j]);
-           if dist < min_hamming_dist {
-               min_hamming_dist = dist;
-               matched_index = j;
-           }
-        }
-
-        index_vec.push((i as usize, matched_index as usize));
-        matched_indices.insert(matched_index);
-    }
-
-    index_vec
 }
