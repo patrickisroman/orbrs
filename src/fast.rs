@@ -1,22 +1,27 @@
-use image::{GenericImageView, ImageError, DynamicImage, ImageBuffer, Rgb, GrayImage};
+use image::{ImageError, Rgb, GrayImage};
 use imageproc::drawing::draw_line_segment_mut;
-use cgmath::prelude::*;
-use cgmath::{Rad};
+use cgmath::{prelude::{*}, Rad};
 
 // Consts
-const DEFAULT_FAST_THRESHOLD:i32 = 30;
+const DEFAULT_FAST_THRESHOLD:i32 = 50;
 
 // Types
 pub type Point = (i32, i32);
 pub type Offset = (i32, i32);
 
-// Make a trait for FastKeypoint/OrientedFastKeypoint
 #[derive(Debug, Clone, Copy)]
 pub struct FastKeypoint {
     pub location: Point,
     pub score: i32,
-    pub nms_dist: f64,
+    pub nms_dist: f32,
     pub moment: Moment
+}
+
+impl FastKeypoint {
+    pub fn dist(&self, other:&FastKeypoint) -> f32 {
+        let ((ax, ay), (bx, by)) = (self.location, other.location);
+        ((ax-bx).pow(2) as f32 + (ay-by).pow(2) as f32).sqrt()
+    }
 }
 
 #[derive(Debug)]
@@ -83,8 +88,8 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
             let radius_pixels = ctx.offsets
                 .clone()
                 .into_iter()
-                .map(|(p_x, p_y)| {
-                    img.get_pixel((x + p_x) as u32, (y + p_y) as u32).0[0] as i32
+                .map(|(px, py)| {
+                    img.get_pixel((x + px) as u32, (y + py) as u32).0[0] as i32
                 })
                 .collect::<Vec<i32>>();
 
@@ -177,7 +182,7 @@ pub fn draw_moments(img: &mut image::RgbImage, vec: &Vec<FastKeypoint>) {
     let ctx = FastType::TYPE_9_16.get_context();
 
     for k in vec {
-        let score = (k.score / 100) as u8;
+        let score = (k.score / 300) as u8;
         let color = [score, 0, 122];
 
         let start_point = k.location;
