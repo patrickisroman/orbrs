@@ -10,7 +10,7 @@ use fast::{Point, FastKeypoint, Moment};
 use cgmath::prelude::*;
 use cgmath::{Rad, Deg};
 
-const DEFAULT_BRIEF_LENGTH:usize = 256;
+const DEFAULT_BRIEF_LENGTH:usize = 32;
 
 //
 // Sobel Calculations
@@ -61,25 +61,22 @@ pub struct Brief {
     pub b: BitVector
 }
 
-// lol wtf this bitvector library xor doesn't work...
 fn brief_distance(brief1: &Brief, brief2: &Brief) -> usize {
-    let mut diff:usize = 0;
+    let mut hamming_distance:usize = 0;
     for i in 0..std::cmp::min(brief1.b.capacity(), brief2.b.capacity()) {
         if brief1.b.contains(i) != brief2.b.contains(i) {
-            diff += 1;
+            hamming_distance += 1;
         }
     }
-    diff
+    hamming_distance
 }
 
 fn round_angle(angle: i32, increment: i32) -> i32 {
     let modulo:i32 = angle % increment;
-    let complement:i32 = match angle < 0 {
-        true => increment + modulo,
-        false => increment - modulo
-    };
+    let complement:i32 = if angle < 0 
+        { increment + modulo } else { increment - modulo} ;
 
-    if modulo.abs() > (increment / 2) {
+    if modulo.abs() > (increment << 1) {
         return if angle < 0 { angle - complement } else { angle + complement };
     }
 
@@ -109,18 +106,16 @@ pub fn adaptive_nonmax_suppression(vec: &mut Vec<FastKeypoint>, n: usize) -> Vec
     suppressed_keypoints
 }
 
-pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>, n: Option<usize>) -> Vec<Brief> {
+pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Option<usize>) -> Vec<Brief> {
     let brief_length = brief_length.unwrap_or(DEFAULT_BRIEF_LENGTH);
-    let n = n.unwrap_or(10) as f64;
-
     let width:i32 = blurred_img.width() as i32;
     let height:i32 = blurred_img.height() as i32;
 
     vec.into_iter()
         .map(|k| {
-            // calculate the angle to steer the BRIEF descriptors
             let rotation = Deg::from(Rad(k.moment.rotation)).0.round() as i32;
             let rounded_angle = Deg(round_angle(rotation, 12) as f32);
+
             let cos_a = Deg::cos(rounded_angle);
             let sin_a = Deg::sin(rounded_angle);
             let (x, y) = k.location;
@@ -128,8 +123,7 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
             let mut bit_vec = BitVector::new(brief_length);
 
             for i in 0..brief_length {
-                let (x0, y0) = brief::OFFSETS[i].0;
-                let (x1, y1) = brief::OFFSETS[i].1;
+                let ((x0, y0), (x1, y1)) = brief::OFFSETS[i];
 
                 let mut steered_p1 = (
                     x + (x0 * cos_a - y0 * sin_a).round() as i32,
@@ -167,14 +161,14 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
 // ORB Calculations
 //
 
-// load image and pass around reference to image instead of loading from path
-pub fn orb(img: &GrayImage, n:usize) -> Result<Vec<Brief>, ImageError> {
-    let mut keypoints = fast::fast(img, None, None)?;
-    fast::calculate_fast_centroids(img, &mut keypoints);
-    let mut keypoints = adaptive_nonmax_suppression(&mut keypoints, n);
+pub fn orb(img: &DynamicImage, n:usize) -> Result<Vec<Brief>, ImageError> {
+    let gray_img = img.to_luma();
+    
+    let mut keypoints = fast::fast(&gray_img, None, None)?;
+    let keypoints = adaptive_nonmax_suppression(&mut keypoints, n);
 
-    let blurred_img = blur(img, 2.0);
-    let brief_descriptors = brief(&blurred_img, &keypoints, None, None);
+    let blurred_img = blur(&gray_img, 3.0);
+    let brief_descriptors = brief(&blurred_img, &keypoints, None);
 
     Ok(brief_descriptors)
 }
