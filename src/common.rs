@@ -1,12 +1,13 @@
 use bitvector::BitVector;
 
 pub type Point = (i32, i32);
+pub type IndexMatch = (usize, usize);
 
 pub trait Matchable {
     fn distance(&self, other: &Self) -> usize;
 }
 
-pub fn match_indices<T>(vec1: &Vec<T>, vec2: &Vec<T>) -> Vec<(usize, usize)>
+pub fn match_indices<T>(vec1: &Vec<T>, vec2: &Vec<T>) -> Vec<IndexMatch>
 where
     T: Matchable
 {
@@ -20,7 +21,7 @@ where
         let mut min_dist:usize = usize::MAX;
         let mut matched_index:usize = 0;
         for j in 0..len {
-            if i == j || matched_indices.contains(j) { 
+            if matched_indices.contains(j) { 
                 continue
             }
 

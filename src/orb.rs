@@ -1,5 +1,5 @@
 use std::cmp::{min, max};
-use image::{ImageError, GenericImageView, DynamicImage, ImageBuffer, GrayImage};
+use image::{ImageError, GenericImageView, DynamicImage, ImageBuffer, GrayImage, ImageFormat, RgbImage};
 use image::imageops::{blur};
 use cgmath::{prelude::{*},Rad, Deg};
 use bitvector::BitVector;
@@ -85,6 +85,9 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
     let width:i32 = blurred_img.width() as i32;
     let height:i32 = blurred_img.height() as i32;
 
+    // copy offsets into current frame on stack
+    let offsets = brief::OFFSETS.clone();
+
     vec.into_iter()
         .map(|k| {
             let rotation = Deg::from(Rad(k.moment.rotation)).0.round() as i32;
@@ -96,9 +99,7 @@ pub fn brief(blurred_img: &GrayImage, vec: &Vec<FastKeypoint>, brief_length: Opt
 
             let mut bit_vec = BitVector::new(brief_length);
 
-            for i in 0..brief_length {
-                let ((x0, y0), (x1, y1)) = brief::OFFSETS[i];
-
+            for (i, ((x0, y0), (x1, y1))) in offsets.iter().enumerate() {
                 let mut steered_p1 = (
                     x + (x0 * cos_a - y0 * sin_a).round() as i32,
                     y + (x0 * sin_a + y0 * cos_a).round() as i32

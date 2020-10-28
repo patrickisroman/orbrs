@@ -1,4 +1,4 @@
-use image::{ImageError, Rgb, GrayImage};
+use image::{ImageError, Rgba, GrayImage};
 use imageproc::drawing::draw_line_segment_mut;
 use cgmath::{prelude::{*}, Rad};
 
@@ -48,7 +48,7 @@ impl FastType {
                     ( 2,  1), ( 1,  2), ( 0,  2), (-1,  2),
                     (-2,  1), (-2,  0), (-2, -1), (-1, -2)
                 ],
-                idx: vec![0, 3, 6, 9, 1, 2, 4, 5, 7, 8, 10, 11],
+                idx: vec![0, 6, 3, 9, 1, 2, 4, 5, 7, 8, 10, 11],
                 cmp: vec![1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3],
                 radius: 3,
                 n: 9
@@ -60,7 +60,7 @@ impl FastType {
                     (0,  3), (-1,  3), (-2,  2), (-3,  1),
                     (-3, 0), (-3, -1), (-2, -2), (-1, -3) 
                 ],
-                idx: vec![0, 4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15],
+                idx: vec![0, 8, 4, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15],
                 cmp: vec![1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
                 radius: 4,
                 n: 12
@@ -84,19 +84,14 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
             let y = y as i32;
             let point:Point = (x, y);
 
-            let radius_pixels = ctx.offsets
-                .clone()
-                .into_iter()
-                .map(|(px, py)| {
-                    img.get_pixel((x + px) as u32, (y + py) as u32).0[0] as i32
-                })
-                .collect::<Vec<i32>>();
-
             let mut score:i32 = 0;
             let mut similars:i32 = 0;
 
-            for idx in 0..ctx.idx.len() {
-                let diff = (radius_pixels[ctx.idx[idx]] - center_pixel).abs();
+            for idx in 0..ctx.offsets.len() {
+                let px_idx = ctx.idx[idx];
+                let px = img.get_pixel((x + ctx.offsets[px_idx].0) as u32, (y + ctx.offsets[px_idx].1) as u32).0[0] as i32;
+                let diff = (px - center_pixel).abs();
+                
                 if diff < threshold {
                     similars += 1;
                     if similars > ctx.cmp[idx] {
@@ -108,7 +103,6 @@ pub fn fast(img: &image::GrayImage, fast_type: Option<FastType>, threshold: Opti
             }
 
             let moment = moment_centroid(img, &point, None);
-
             fast_keypoint_matches.push(FastKeypoint {
                 location: point,
                 score: score,
@@ -177,12 +171,12 @@ fn moment_centroid(img: &GrayImage, point: &Point, moment_radius:Option<u32>) ->
     }
 }
 
-pub fn draw_moments(img: &mut image::RgbImage, vec: &Vec<FastKeypoint>) {
+pub fn draw_moments(img: &mut image::RgbaImage, vec: &Vec<FastKeypoint>) {
     let ctx = FastType::TYPE_9_16.get_context();
 
     for k in vec {
         let score = (k.score / 300) as u8;
-        let color = [score, 0, 122];
+        let color = [score, 0, 122, 125];
 
         let start_point = k.location;
 
@@ -198,7 +192,7 @@ pub fn draw_moments(img: &mut image::RgbImage, vec: &Vec<FastKeypoint>) {
             img,
             (start_point.0 as f32, start_point.1 as f32),
             end_point,
-            Rgb([0, 0, 0])
+            Rgba([0, 0, 0, 125])
         );
 
         // draw circle
