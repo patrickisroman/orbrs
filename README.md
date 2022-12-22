@@ -3,30 +3,34 @@
 This is mostly a WIP. Implementing Oriented Fast & Rotated BRIEF descriptors with Rust and the image library.
 
 **ORB** Keypoints
-![ORB Keypoints](example/out.png)
+![ORB Keypoints](examples/out.png)
 
 ```rust
 use image;
 use orbrs;
 
 fn test() {
-    let mut img1 = image::open("example/a.png").unwrap();
-    let mut img2 = image::open("example/b.png").unwrap();
+    let mut img1 = image::open("examples/money1.jpg").unwrap();
+    let mut img2 = image::open("examples/money2.jpg").unwrap();
 
     let n_keypoints = 50;
 
-    let img1_keypoints = orbrs::orb::orb(&mut img, n_keypoints).unwrap();
-    let img2_keypoints = orbrs::orb::orb(&mut img, n_keypoints).unwrap();
+    let img1_keypoints = orbrs::orb::orb(&mut img1, n_keypoints).unwrap();
+    let img2_keypoints = orbrs::orb::orb(&mut img2, n_keypoints).unwrap();
 
-    let pair_indices = orbrs::orb::match_brief(&img1_keypoints, &img2_keypoints);
+    let pair_indices = orbrs::common::match_indices(&img1_keypoints, &img2_keypoints);
+
+    let img = orbrs::orb::draw_orb(&img1, &img2, &img1_keypoints, &img2_keypoints, &pair_indices);
+    img.save_with_format("examples/money_output.png", image::ImageFormat::Png)
+        .unwrap();
 }
 ```
 
-
 **FAST** Keypoints
-![FAST Keypoints](example/fast.png)
+![FAST Keypoints](examples/fast.png)
 
 Example extracting ORB Features and drawing keypoints:
+
 ```rust
 use image;
 use orbrs;
